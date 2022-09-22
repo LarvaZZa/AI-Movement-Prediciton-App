@@ -43,7 +43,18 @@ public class MainActivity extends AppCompatActivity {
     private J48 j48;
     private ArrayList<Attribute> atts = new ArrayList<>();
     private ArrayList<String> activityVal = new ArrayList<>();
-    Instances dataCollected;
+    private Instances dataCollected;
+
+    private double x;
+    private double y;
+    private double z;
+
+    private double xAv;
+    private double yAv;
+    private double zAv;
+
+    private int index = 0;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
         accelerometerText = findViewById(R.id.accelerometer);
 
         try {
-            j48 = (J48) weka.core.SerializationHelper.read(getResources().openRawResource(R.raw.j48));
+            j48 = (J48) weka.core.SerializationHelper.read(getResources().openRawResource(R.raw.j4879pc));
 
             activityVal.add("walking");
             activityVal.add("standing");
@@ -64,7 +75,12 @@ public class MainActivity extends AppCompatActivity {
             atts.add(new Attribute("Right_pocket_Ax"));
             atts.add(new Attribute("Right_pocket_Ay"));
             atts.add(new Attribute("Right_pocket_Az"));
-            atts.add(new Attribute("Activity", activityVal));
+            atts.add(new Attribute("Vector"));
+            atts.add(new Attribute("AverageX"));
+            atts.add(new Attribute("AverageY"));
+            atts.add(new Attribute("AverageZ"));
+            atts.add(new Attribute("Average_Vector"));
+            atts.add(new Attribute("Action", activityVal));
 
             dataCollected = new Instances("CollectedData", atts, 0);
             dataCollected.setClassIndex(dataCollected.numAttributes() - 1);
@@ -82,7 +98,27 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onSensorChanged(SensorEvent event) {
-                dataCollected.add(new DenseInstance(1.0, new double[]{event.values[0],event.values[1],event.values[2],-1}));
+                x = event.values[0];
+                y = event.values[1];
+                z = event.values[2];
+               // dataCollected.add(new DenseInstance(1.0, new double[]{x, y, z, Math.sqrt(x*x+y*y+z*z), x, y, z, Math.sqrt(x*x+y*y+z*z)}));
+                if(dataCollected.size() == 0){
+
+                    dataCollected.add(new DenseInstance(1.0, new double[]{x, y, z, Math.sqrt(x*x+y*y+z*z), x, y, z, Math.sqrt(x*x+y*y+z*z)}));
+                }
+                else if (dataCollected.size()==1){
+                    xAv = (dataCollected.instance(index).value(0) + x)/2;
+                    yAv = (dataCollected.instance(index).value(1) + y)/2;
+                    zAv = (dataCollected.instance(index).value(2) + z)/2;
+                    dataCollected.add(new DenseInstance(1.0, new double[]{x, y, z, Math.sqrt(x*x+y*y+z*z), xAv, yAv, zAv, Math.sqrt(xAv*xAv+yAv*yAv+zAv*zAv)}));
+                    index++;
+                } else {
+                    xAv = (dataCollected.instance(index-1).value(0) + dataCollected.instance(index).value(0) + x)/3;
+                    yAv = (dataCollected.instance(index-1).value(1) + dataCollected.instance(index).value(1) + y)/3;
+                    zAv = (dataCollected.instance(index-1).value(2) + dataCollected.instance(index).value(2) + z)/3;
+                    dataCollected.add(new DenseInstance(1.0, new double[]{x, y, z, Math.sqrt(x*x+y*y+z*z), xAv, yAv, zAv, Math.sqrt(xAv*xAv+yAv*yAv+zAv*zAv)}));
+                    index++;
+                }
                 accelerometerText.setText(String.format("Ax:%s\nAy:%s\nAz:%s", event.values[0], event.values[1], event.values[2]));
             }
         };
@@ -123,13 +159,15 @@ public class MainActivity extends AppCompatActivity {
 
     private void predict() throws Exception {
 
+        index = 0;
         for (int i=0; i < dataCollected.numInstances(); i++){
             classValues.add(j48.classifyInstance(dataCollected.get(i)));
         }
+        dataCollected.delete();
 
         int predMovementIndex = mostCommon(classValues);
         System.out.println(classValues.toString());
-        System.out.println("classified:" + dataCollected.classAttribute().value(predMovementIndex));
+
 
         switch(predMovementIndex) {
             case 0:
@@ -161,9 +199,6 @@ public class MainActivity extends AppCompatActivity {
                 mediaPlayer.start();
                 break;
         }
-
-        ///may or may not delete
-        dataCollected.delete();
         classValues.clear();
     }
 
